@@ -1,0 +1,10 @@
+# Godot 4
+.godot/
+/builds/
+/android/
+
+# export_presets.cfg guarda rutas de keystore y a veces contraseñas.
+export_presets.cfg
+
+# macOS
+.DS_Store

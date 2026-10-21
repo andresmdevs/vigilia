@@ -1,0 +1,53 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/world/valley.tscn" id="1_level"]
+[ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="2_player"]
+[ext_resource type="Script" path="res://scripts/core/hud.gd" id="3_hud"]
+[ext_resource type="Script" path="res://scripts/world/spawner.gd" id="4_spawner"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/zombie.tscn" id="5_zombie"]
+[ext_resource type="Script" path="res://scripts/world/loot_spawner.gd" id="6_loot"]
+[ext_resource type="PackedScene" path="res://scenes/items/pickup.tscn" id="7_pickup"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
+sky_top_color = Color(0.29, 0.36, 0.47, 1)
+sky_horizon_color = Color(0.62, 0.65, 0.67, 1)
+ground_horizon_color = Color(0.62, 0.65, 0.67, 1)
+ground_bottom_color = Color(0.19, 0.2, 0.21, 1)
+
+[sub_resource type="Sky" id="Sky_main"]
+sky_material = SubResource("ProceduralSkyMaterial_sky")
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 2
+sky = SubResource("Sky_main")
+ambient_light_source = 3
+ambient_light_energy = 0.45
+fog_enabled = true
+fog_light_color = Color(0.64, 0.67, 0.7, 1)
+fog_density = 0.0065
+
+[node name="Main" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation = Vector3(-0.95, -0.7, 0)
+light_energy = 1.1
+shadow_enabled = true
+
+[node name="Level" parent="." instance=ExtResource("1_level")]
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 8)
+
+[node name="Spawner" type="Node3D" parent="."]
+script = ExtResource("4_spawner")
+zombie_scene = ExtResource("5_zombie")
+
+[node name="LootSpawner" type="Node3D" parent="."]
+script = ExtResource("6_loot")
+pickup_scene = ExtResource("7_pickup")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("3_hud")

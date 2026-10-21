@@ -1,0 +1,141 @@
+extends Node
+## Utilidades de desarrollo. Completamente inerte en una partida normal.
+##
+## Captura automática, para revisar el juego sin abrir el editor y para
+## comparar el antes/después de un cambio visual:
+##
+##   Godot --path . -- --shot /ruta/salida.png [--walk]
+##
+## Con --walk mantiene pulsado "adelante" durante el calentamiento, para que
+## la captura muestre al personaje en movimiento y no en reposo. Sirve para
+## verificar locomoción, orientación del modelo y mezcla de animaciones.
+
+const WARMUP_FRAMES := 240
+
+
+func _ready() -> void:
+	var args := OS.get_cmdline_user_args()
+	if args.has("--combate"):
+		_probar_combate()
+		return
+	var idx := args.find("--shot")
+	if idx == -1:
+		return
+
+	var path := "user://shot.png"
+	if idx + 1 < args.size():
+		path = args[idx + 1]
+	_shoot(path, args.has("--walk"))
+
+
+## Prueba automática del bucle de combate: acerca al jugador a un zombi, le
+## pega con el hacha y luego le dispara, y reporta qué pasó. Verifica de
+## verdad que muere, en vez de confiar en que el código compila.
+func _probar_combate() -> void:
+	for _i in 120:
+		await get_tree().process_frame
+
+	var jugador := get_tree().get_first_node_in_group("player")
+	var zombies := get_tree().get_nodes_in_group("zombies")
+	if jugador == null or zombies.is_empty():
+		print("[test] FALLA: sin jugador (%s) o sin zombies (%d)" % [jugador != null, zombies.size()])
+		get_tree().quit(1); return
+
+	# --- HACHA ---
+	var z := zombies[0] as Node3D
+	var vida_ini: float = z.get("health")
+	jugador.global_position = z.global_position + Vector3(0, 0, 1.4)
+	jugador.call("_equipar", "hacha")
+	await get_tree().physics_frame
+	# Mirar al zombi: el golpe es un arco frontal.
+	jugador.get_node("Visual").look_at(z.global_position, Vector3.UP)
+	jugador.get_node("Visual").rotation.x = 0.0
+	jugador.get_node("Visual").rotation.z = 0.0
+
+	var golpes := 0
+	while is_instance_valid(z) and float(z.get("health")) > 0.0 and golpes < 10:
+		jugador.call("_atacar")
+		golpes += 1
+		for _k in 8:
+			await get_tree().physics_frame
+	print("[test] hacha: vida %.0f -> %.0f en %d golpes  |  bajas=%d" % [
+		vida_ini, (z.get("health") if is_instance_valid(z) else 0.0), golpes, jugador.get("bajas")])
+
+	# --- PISTOLA ---
+	var vivos := get_tree().get_nodes_in_group("zombies")
+	if vivos.is_empty():
+		print("[test] no quedan zombies para probar la pistola")
+		get_tree().quit(); return
+	var z2 := vivos[0] as Node3D
+	jugador.call("_equipar", "pistola")
+	var mun_ini: int = jugador.call("municion")
+	# Colocar la cámara mirando al zombi: el tiro sale de la cámara.
+	jugador.global_position = z2.global_position + Vector3(0, 0, 6.0)
+	var rig := jugador.get_node("CameraRig")
+	await get_tree().physics_frame
+	rig.look_at(z2.global_position + Vector3(0, 1.0, 0), Vector3.UP)
+	for _k in 4:
+		await get_tree().physics_frame
+
+	var vida2_ini: float = z2.get("health")
+	var tiros := 0
+	while is_instance_valid(z2) and float(z2.get("health")) > 0.0 and tiros < 12:
+		# Por _atacar() y no por _disparo(): es el camino real del jugador, el
+		# único que descuenta munición. Probar el atajo no prueba nada.
+		jugador.call("_atacar")
+		tiros += 1
+		for _j in 4:
+			await get_tree().physics_frame
+	print("[test] pistola: vida %.0f -> %.0f en %d tiros  |  municion %d -> %d" % [
+		vida2_ini, (z2.get("health") if is_instance_valid(z2) else 0.0), tiros,
+		mun_ini, jugador.call("municion")])
+	print("[test] bajas totales = %d" % jugador.get("bajas"))
+
+	# Con el cargador a cero no debe poder disparar.
+	jugador.set("_municion", {"hacha": -1, "pistola": 0})
+	var antes: int = jugador.get("bajas")
+	for _k in 5:
+		jugador.call("_atacar")
+		for _j in 3:
+			await get_tree().physics_frame
+	print("[test] sin balas: municion=%d  bajas sin cambio=%s" % [
+		jugador.call("municion"), antes == int(jugador.get("bajas"))])
+	get_tree().quit()
+
+
+func _shoot(path: String, walking: bool) -> void:
+	if walking:
+		Input.action_press("move_forward")
+	# Damos unos frames para que el nivel se construya y la luz se asiente.
+	for _i in WARMUP_FRAMES:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+
+	var err := get_viewport().get_texture().get_image().save_png(path)
+	if err == OK:
+		print("[dev] captura guardada en ", path)
+		print("[dev] fps=%d  draw_calls=%d  triangulos=%s  objetos=%d" % [
+			Engine.get_frames_per_second(),
+			Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
+			String.num_uint64(int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))),
+			Performance.get_monitor(Performance.OBJECT_COUNT),
+		])
+	else:
+		push_error("[dev] no se pudo guardar la captura (error %d)" % err)
+	var jugador := get_tree().get_first_node_in_group("player")
+	if jugador is CharacterBody3D:
+		var cb := jugador as CharacterBody3D
+		print("[dev] jugador y=%.2f  en_suelo=%s  vel=(%.1f, %.1f, %.1f)" % [
+			cb.global_position.y, cb.is_on_floor(), cb.velocity.x, cb.velocity.y, cb.velocity.z])
+	var arma := get_tree().get_first_node_in_group("player")
+	if arma != null:
+		var h := arma.find_child("Arma", true, false)
+		if h != null:
+			var m := h.get_child(0) if h.get_child_count() > 0 else null
+			if m is MeshInstance3D:
+				var mundo: Vector3 = (m as MeshInstance3D).mesh.get_aabb().size * m.global_transform.basis.get_scale()
+				print("[dev] arma: malla=%.2fm  escala_hueso=%.2f  tamano_final=%.2fm" % [
+					(m as MeshInstance3D).mesh.get_aabb().size.z,
+					h.global_transform.basis.get_scale().x,
+					maxf(mundo.x, maxf(mundo.y, mundo.z))])
+	get_tree().quit()

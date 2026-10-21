@@ -1,0 +1,45 @@
+; Archivo de configuración del motor.
+;
+; "Vigilia" — survival co-op. Nombre provisional.
+; Renderer: GL Compatibility a propósito. Es el único que corre bien
+; en WebGL2 (export web) y en Android de gama media. Forward+ se ve
+; mejor pero nos cerraría las dos plataformas que queremos.
+
+config_version=5
+
+[application]
+
+config/name="Vigilia"
+config/description="Rebusca de día. Atranca de noche. Arregla el carro. Sal de ahí."
+run/main_scene="res://scenes/ui/menu.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[autoload]
+
+GameInput="*res://scripts/core/game_input.gd"
+GameConfig="*res://scripts/core/game_config.gd"
+DevTools="*res://scripts/dev/dev_tools.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[navigation]
+
+3d/default_cell_size=1.0
+3d/default_cell_height=1.0
+
+[physics]
+
+3d/default_gravity=24.0
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
+anti_aliasing/quality/msaa_3d=1
