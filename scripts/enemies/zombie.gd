@@ -166,13 +166,29 @@ func _physics_process(delta: float) -> void:
 
 
 func _chase(delta: float) -> void:
-	agent.target_position = _player.global_position
-	var next := agent.get_next_path_position()
-	var dir := next - global_position
-	dir.y = 0.0
-	if dir.length_squared() < 0.0001:
+	var destino := _player.global_position
+	# Repedir la ruta solo cuando el objetivo se movió de verdad: hacerlo cada
+	# frame fuerza un recálculo constante y no aporta precisión ninguna.
+	if agent.target_position.distance_to(destino) > 1.2:
+		agent.target_position = destino
+
+	var directo := destino - global_position
+	directo.y = 0.0
+	if directo.length_squared() < 0.0001:
 		_halt()
 		return
+	var dir := directo
+
+	var por_ruta := agent.get_next_path_position() - global_position
+	por_ruta.y = 0.0
+	# La ruta solo manda si de verdad acerca al jugador. Si el zombi quedó
+	# fuera del navmesh, su primer tramo apunta a volver a él —normalmente en
+	# dirección opuesta— y es lo que hacía que pareciera que huyen. Ante la
+	# duda, persecución directa: un zombi que se queda clavado por un fallo de
+	# pathfinding deja de dar miedo, que es su único trabajo.
+	if por_ruta.length_squared() > 0.04 and por_ruta.normalized().dot(directo.normalized()) > -0.15:
+		dir = por_ruta
+
 	dir = dir.normalized()
 	velocity.x = dir.x * chase_speed
 	velocity.z = dir.z * chase_speed

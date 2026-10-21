@@ -17,6 +17,7 @@ const KEY_ACTIONS := {
 	"weapon_1":     [KEY_1],
 	"weapon_2":     [KEY_2],
 	"restart":      [KEY_R],
+	"flashlight":   [KEY_F],
 }
 
 const MOUSE_ACTIONS := {

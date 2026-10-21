@@ -16,7 +16,7 @@ signal navigation_ready
 @export_group("Dimensiones")
 ## Lado del mapa en metros. Es un mapa acotado y denso, no un mundo infinito:
 ## los bordes se cierran con un muro de árboles.
-@export var size := 400.0
+@export var size := 620.0
 ## Metros por celda del terreno. Más bajo = más detalle y más triángulos.
 @export var resolution := 4.0
 @export var hill_height := 16.0
@@ -28,21 +28,21 @@ signal navigation_ready
 @export_group("Vegetación")
 ## Bajado de 2.200 a 1.100: los pinos reales traen ~1.900 triángulos cada uno
 ## frente a los ~100 de la primitiva que había antes.
-@export var tree_count := 1600
-@export var bush_count := 900
-@export var rock_count := 400
+@export var tree_count := 3200
+@export var bush_count := 1800
+@export var rock_count := 800
 ## El mapa se divide en CHUNKS x CHUNKS celdas y cada celda lleva sus propios
 ## MultiMesh. Es la clave del rendimiento: Godot descarta un MultiMesh entero
 ## por su caja envolvente, así que uno solo que cubriera los 400 m dibujaría
 ## TODOS los árboles aunque tuvieras el bosque a la espalda.
-@export var chunks := 4
+@export var chunks := 7
 ## Más allá de esto los arbustos dejan de dibujarse. La niebla los tapa y
 ## no vale la pena pagarlos.
-@export var bush_view_distance := 70.0
+@export var bush_view_distance := 110.0
 ## Más allá de esto los árboles dejan de dibujarse. Con la niebla actual la
 ## visibilidad real ronda los 150 m, así que a 200 no se nota y recorta
 ## bastante trabajo de dibujado.
-@export var tree_view_distance := 200.0
+@export var tree_view_distance := 400.0
 
 var nav_ready := false
 
@@ -507,7 +507,7 @@ func _make_navmesh() -> NavigationMesh:
 	# millones de columnas y el horneado tardaría muchísimo. Un zombie
 	# persiguiéndote por un bosque no necesita precisión de centímetro.
 	nm.cell_size = 1.0
-	nm.cell_height = 1.0
+	nm.cell_height = 0.25
 	nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
 	return nm
 

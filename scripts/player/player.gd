@@ -7,8 +7,11 @@ extends CharacterBody3D
 ## que es el bug clásico de los controladores en tercera persona.
 
 @export_group("Movimiento")
-@export var walk_speed := 4.0
-@export var sprint_speed := 7.2
+## Ajustadas a lo que representan las animaciones, no al revés. Antes el
+## personaje caminaba a 4 m/s con un ciclo de andar y corría a 7,2 acelerando
+## Sprint 1,8x: las piernas iban mucho más rápido que el avance real.
+@export var walk_speed := 2.4
+@export var sprint_speed := 6.4
 @export var acceleration := 14.0
 @export var friction := 16.0
 @export var turn_speed := 12.0
@@ -71,9 +74,13 @@ var health: float
 var resources := {}
 
 @export_group("Animación")
-## Velocidad a la que el ciclo de caminar se ve natural. Por debajo o por
-## encima aceleramos/frenamos la reproducción para que los pies no patinen.
-@export var anim_reference_speed := 4.0
+## Velocidad (m/s) a la que CADA animación se ve natural a velocidad x1.
+## Una sola cifra global no servía: Walk y Sprint representan cosas distintas,
+## y usar la misma referencia para ambas es lo que hacía patinar los pies.
+const VEL_NATURAL := {
+	"walk": 1.8,
+	"run": 6.4,
+}
 
 ## Estado -> animación, explícito a propósito.
 ##
@@ -106,6 +113,9 @@ var _ataque_cd := 0.0
 ## hacia donde camina: atacar de espaldas a la mira sería absurdo.
 var _apuntando := 0.0
 var _soporte: Node3D
+var _linterna: SpotLight3D
+var _reloj: Node
+var linterna_encendida := false
 
 
 func _ready() -> void:
@@ -118,6 +128,8 @@ func _ready() -> void:
 	# escena se puede reorganizar sin romperles la referencia.
 	add_to_group("player")
 	_equipar(arma_id)
+	_montar_linterna()
+	_reloj = get_tree().get_first_node_in_group("reloj")
 
 
 ## Cuelga el arma del hueso de la mano derecha. Se hace por código y no en la
@@ -150,6 +162,36 @@ func _find_skeleton(root: Node) -> Skeleton3D:
 		if f != null:
 			return f
 	return null
+
+
+## Linterna colgada del rig de la cámara, no de la mano: alumbra a donde
+## miras, que es lo que el jugador espera y lo que hace la noche jugable.
+func _montar_linterna() -> void:
+	_linterna = SpotLight3D.new()
+	_linterna.name = "Linterna"
+	_linterna.light_color = Color(1.0, 0.95, 0.82)
+	_linterna.light_energy = 6.0
+	_linterna.spot_range = 34.0
+	_linterna.spot_angle = 26.0
+	_linterna.spot_angle_attenuation = 0.6
+	_linterna.spot_attenuation = 1.2
+	_linterna.shadow_enabled = true
+	_linterna.position = Vector3(0.25, -0.1, 0.0)
+	_linterna.visible = false
+	camera_rig.add_child(_linterna)
+
+
+func _actualizar_linterna() -> void:
+	if _linterna == null:
+		return
+	if Input.is_action_just_pressed("flashlight"):
+		linterna_encendida = not linterna_encendida
+	# Se enciende sola cuando cae la tarde: nadie quiere morir a oscuras por
+	# no haber descubierto que existía una tecla.
+	if _reloj != null and is_instance_valid(_reloj) and bool(_reloj.call("hay_poca_luz")):
+		if not linterna_encendida and not _linterna.visible:
+			linterna_encendida = true
+	_linterna.visible = linterna_encendida and health > 0.0
 
 
 func _equipar(id: String) -> void:
@@ -262,6 +304,8 @@ func _physics_process(delta: float) -> void:
 	_ataque_cd = maxf(0.0, _ataque_cd - delta)
 	_apuntando = maxf(0.0, _apuntando - delta)
 
+	_actualizar_linterna()
+
 	if health > 0.0:
 		if Input.is_action_just_pressed("weapon_1"):
 			_equipar(ORDEN_ARMAS[0])
@@ -332,10 +376,10 @@ func _drive_animation() -> void:
 		want = "walk"
 
 	if _anim != null:
-		var scale := 1.0
-		if want == "walk" or want == "run":
-			scale = clampf(speed / anim_reference_speed, 0.6, 2.4)
-		_anim.speed_scale = scale
+		var escala := 1.0
+		if VEL_NATURAL.has(want):
+			escala = clampf(speed / float(VEL_NATURAL[want]), 0.7, 1.6)
+		_anim.speed_scale = escala
 
 	# Mientras dura el ataque no lo pisamos con la locomoción.
 	if _anim_state == "ataque" and _ataque_cd > 0.0:

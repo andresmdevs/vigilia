@@ -10,7 +10,9 @@ var _estado: Label
 var _arma: Label
 var _muerte: Control
 var _marcador: Label
+var _reloj_label: Label
 var _player: Node
+var _reloj: Node
 var _muerto := false
 
 
@@ -21,6 +23,21 @@ func _ready() -> void:
 	_arma.anchor_bottom = 1.0
 	_arma.offset_top = -64
 	_arma.offset_bottom = -20
+	# Arriba a la derecha: el día y cuánto falta para que anochezca. Es la
+	# información que manda sobre todas las demás, porque decide si sigues
+	# rebuscando o te vas a atrancar.
+	_reloj_label = Label.new()
+	_reloj_label.add_theme_font_size_override("font_size", 17)
+	_reloj_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_reloj_label.add_theme_constant_override("outline_size", 6)
+	_reloj_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_reloj_label.anchor_left = 1.0
+	_reloj_label.anchor_right = 1.0
+	_reloj_label.offset_left = -320
+	_reloj_label.offset_right = -22
+	_reloj_label.offset_top = 14
+	add_child(_reloj_label)
+
 	_mira()
 	_pantalla_muerte()
 
@@ -102,9 +119,36 @@ func _pantalla_muerte() -> void:
 	col.add_child(_marcador)
 
 
+func _pintar_reloj() -> void:
+	if _reloj_label == null or _reloj == null or not is_instance_valid(_reloj):
+		return
+	var de_noche: bool = _reloj.call("es_noche")
+	var restante: float = _reloj.call("para_amanecer") if de_noche else _reloj.call("para_anochecer")
+	var etiqueta := "AMANECE EN" if de_noche else "ANOCHECE EN"
+
+	# El color avisa antes que el número: ámbar cuando quedan menos de dos
+	# minutos, rojo bajo el minuto. Se lee de reojo sin tener que leerlo.
+	var color := Color(0.86, 0.88, 0.90)
+	if de_noche:
+		color = Color(0.55, 0.68, 0.95)
+	elif restante < 60.0:
+		color = Color(0.95, 0.35, 0.28)
+	elif restante < 120.0:
+		color = Color(0.95, 0.70, 0.30)
+	_reloj_label.add_theme_color_override("font_color", color)
+
+	_reloj_label.text = "DÍA %d · %s\n%s  %d:%02d" % [
+		int(_reloj.get("dia")), _reloj.call("nombre_fase"),
+		etiqueta, int(restante) / 60, int(restante) % 60,
+	]
+
+
 func _process(_delta: float) -> void:
 	if _player == null or not is_instance_valid(_player):
 		_player = get_tree().get_first_node_in_group("player")
+	if _reloj == null or not is_instance_valid(_reloj):
+		_reloj = get_tree().get_first_node_in_group("reloj")
+	_pintar_reloj()
 	if _player == null:
 		return
 

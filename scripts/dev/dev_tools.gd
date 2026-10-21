@@ -18,6 +18,10 @@ func _ready() -> void:
 	if args.has("--combate"):
 		_probar_combate()
 		return
+	var ic := args.find("--ciclo")
+	if ic != -1:
+		_recorrer_ciclo(args[ic + 1] if ic + 1 < args.size() else "user://")
+		return
 	var idx := args.find("--shot")
 	if idx == -1:
 		return
@@ -26,6 +30,48 @@ func _ready() -> void:
 	if idx + 1 < args.size():
 		path = args[idx + 1]
 	_shoot(path, args.has("--walk"))
+
+
+## Recorre el ciclo completo con el reloj acelerado y captura cada fase. Sin
+## esto habría que esperar siete minutos reales para ver si la noche se ve
+## bien, que es justo el tipo de comprobación que uno acaba no haciendo.
+func _recorrer_ciclo(carpeta: String) -> void:
+	for _i in 90:
+		await get_tree().process_frame
+	var reloj := get_tree().get_first_node_in_group("reloj")
+	if reloj == null:
+		print("[ciclo] FALLA: no hay reloj en la escena")
+		get_tree().quit(1); return
+
+	reloj.set("dura_dia", 2.0)
+	reloj.set("dura_atardecer", 2.0)
+	reloj.set("dura_noche", 2.0)
+	reloj.set("dura_amanecer", 2.0)
+	# Acortar las duraciones no basta: _restante ya traía los 210 s del día
+	# desde _ready(), así que hay que reiniciarlo para que el recorte valga.
+	reloj.set("_restante", 2.0)
+
+	for nombre in ["dia", "atardecer", "noche", "amanecer"]:
+		# Esperar a estar bien dentro de la fase, no en plena transición.
+		# Con tope: un bucle de espera sin límite no falla, se cuelga, y eso
+		# es peor que un test que no existe.
+		var espera := 0
+		while String(reloj.call("nombre_fase")).to_lower().replace("í", "i") != nombre:
+			await get_tree().process_frame
+			espera += 1
+			if espera > 1200:
+				print("[ciclo] FALLA: nunca llegó la fase '%s' (sigue en %s)" % [
+					nombre, reloj.call("nombre_fase")])
+				get_tree().quit(1)
+				return
+		for _k in 45:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var ruta := "%s/ciclo-%s.png" % [carpeta, nombre]
+		get_viewport().get_texture().get_image().save_png(ruta)
+		print("[ciclo] %-10s guardada  ·  zombies=%d" % [
+			nombre, get_tree().get_nodes_in_group("zombies").size()])
+	get_tree().quit()
 
 
 ## Prueba automática del bucle de combate: acerca al jugador a un zombi, le

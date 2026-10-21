@@ -10,8 +10,14 @@ extends Node3D
 @export var spawn_min_distance := 45.0
 @export var spawn_max_distance := 80.0
 
+## De noche llegan muchos más y mucho más seguido. Es el contrato del juego:
+## el día se usa para prepararse porque la noche cobra.
+@export var noche_ritmo := 0.4
+@export var noche_tope := 2.0
+
 var _timer := 0.0
 var _level: Node
+var _reloj: Node
 
 
 func _ready() -> void:
@@ -21,6 +27,7 @@ func _ready() -> void:
 		return
 	_rearm()
 	_level = get_tree().get_first_node_in_group("level")
+	_reloj = get_tree().get_first_node_in_group("reloj")
 	# El navmesh del mapa grande se hornea en hilo: soltar zombies antes de
 	# que termine los deja pidiendo rutas que no existen.
 	if _level != null and _level.has_method("height_at") and not _level.nav_ready:
@@ -34,13 +41,22 @@ func _process(delta: float) -> void:
 	if _timer > 0.0:
 		return
 	_rearm()
-	if get_tree().get_nodes_in_group("zombies").size() < int(GameConfig.actual()["zombie_max"]):
+	var tope := float(GameConfig.actual()["zombie_max"])
+	if _de_noche():
+		tope *= noche_tope
+	if get_tree().get_nodes_in_group("zombies").size() < int(tope):
 		_spawn()
 
 
 func _rearm() -> void:
 	var rango: Vector2 = GameConfig.actual()["zombie_intervalo"]
 	_timer = randf_range(rango.x, rango.y)
+	if _de_noche():
+		_timer *= noche_ritmo
+
+
+func _de_noche() -> bool:
+	return _reloj != null and is_instance_valid(_reloj) and bool(_reloj.call("es_noche"))
 
 
 func _spawn() -> void:
@@ -63,4 +79,9 @@ func _spawn() -> void:
 
 	var zombie := zombie_scene.instantiate() as Node3D
 	add_child(zombie)
+	# Pegarlo al navmesh: uno que nazca fuera no sabrá llegar hasta ti.
+	var mapa := get_world_3d().navigation_map
+	var en_malla := NavigationServer3D.map_get_closest_point(mapa, pos)
+	if en_malla.distance_to(pos) < 12.0:
+		pos = en_malla + Vector3(0, 0.2, 0)
 	zombie.global_position = pos

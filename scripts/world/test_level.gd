@@ -52,7 +52,7 @@ func _make_navmesh() -> NavigationMesh:
 	# cell_size y cell_height deben coincidir con los del mapa de navegación,
 	# o el rasterizado deja bordes mal puestos (Godot avisa en consola).
 	nm.cell_size = 1.0
-	nm.cell_height = 1.0
+	nm.cell_height = 0.25
 	# Horneamos en runtime porque el nivel se genera por código. En ese caso
 	# hay que parsear COLISIONES y no mallas: leer del RenderingServer en
 	# caliente es lento y Godot lo desaconseja explícitamente.
