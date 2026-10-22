@@ -25,9 +25,16 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	# Girar y flotar: hace que se vean de lejos sin necesitar un icono.
+	#
+	# Se anima la MALLA hija, nunca el nodo raíz. Antes se hacía
+	# `position.y = 0.6 + ...` sobre la raíz, que es una altura ABSOLUTA: pisaba
+	# la que había puesto el spawner según el terreno, y en cualquier loma el
+	# objeto quedaba metros bajo tierra. Por eso la mochila salía siempre vacía.
 	_giro += delta
-	rotation.y = _giro * 1.6
-	position.y = 0.6 + sin(_giro * 2.0) * 0.12
+	var malla := get_node_or_null("Mesh") as Node3D
+	if malla != null:
+		malla.rotation.y = _giro * 1.6
+		malla.position.y = sin(_giro * 2.0) * 0.12
 
 
 func _on_body_entered(body: Node3D) -> void:

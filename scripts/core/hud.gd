@@ -158,8 +158,12 @@ func _process(_delta: float) -> void:
 	if not _muerto and vida <= 0.0:
 		_muerto = true
 		_muerte.visible = true
-		_marcador.text = "%d zombies abatidos · día %s\n\nR para volver al menú" % [
-			bajas, GameConfig.actual()["nombre"]]
+		# Antes ponía "día %s" con el NOMBRE de la dificultad: "día ACECHO".
+		var dia := 1
+		if _reloj != null and is_instance_valid(_reloj):
+			dia = int(_reloj.get("dia"))
+		_marcador.text = "%d zombies abatidos · aguantaste hasta el día %d\n\nR para volver al menú" % [
+			bajas, dia]
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 	if _muerto:

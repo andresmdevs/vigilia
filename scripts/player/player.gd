@@ -116,6 +116,7 @@ var _soporte: Node3D
 var _linterna: SpotLight3D
 var _reloj: Node
 var linterna_encendida := false
+var _poca_luz_antes := false
 
 
 func _ready() -> void:
@@ -189,11 +190,16 @@ func _actualizar_linterna() -> void:
 		return
 	if Input.is_action_just_pressed("flashlight"):
 		linterna_encendida = not linterna_encendida
-	# Se enciende sola cuando cae la tarde: nadie quiere morir a oscuras por
-	# no haber descubierto que existía una tecla.
-	if _reloj != null and is_instance_valid(_reloj) and bool(_reloj.call("hay_poca_luz")):
-		if not linterna_encendida and not _linterna.visible:
-			linterna_encendida = true
+	# Se enciende sola UNA vez, en el momento en que cae la tarde: nadie quiere
+	# morir a oscuras por no haber descubierto que existía una tecla.
+	#
+	# Solo en la transición. La versión anterior lo comprobaba cada frame y,
+	# como un frame después de pulsar F la luz ya estaba apagada, la volvía a
+	# encender: era imposible apagarla de tarde o de noche.
+	var poca_luz := _reloj != null and is_instance_valid(_reloj) and bool(_reloj.call("hay_poca_luz"))
+	if poca_luz and not _poca_luz_antes:
+		linterna_encendida = true
+	_poca_luz_antes = poca_luz
 	_linterna.visible = linterna_encendida and health > 0.0
 
 
@@ -266,10 +272,16 @@ func _disparo(arma: Dictionary) -> void:
 	var cam := get_node_or_null("CameraRig/SpringArm3D/Camera3D") as Camera3D
 	if cam == null:
 		return
-	# Se dispara desde la cámara y no desde el arma: es lo que hace que el tiro
-	# vaya donde apunta la mira, que es lo que el jugador espera.
+	# El rayo sigue la línea de la cámara, para que el tiro vaya donde apunta
+	# la mira. Pero NO arranca en la cámara: esta va 4,2 m por detrás del
+	# jugador, y un rayo desde ahí acertaba primero a lo que tuvieras a la
+	# espalda, entre la cámara y tú. Se adelanta hasta la altura del jugador.
+	var dir := -cam.global_transform.basis.z
 	var desde := cam.global_position
-	var hasta := desde - cam.global_transform.basis.z * float(arma["alcance"])
+	var hasta_jugador := (global_position - desde).dot(dir)
+	if hasta_jugador > 0.0:
+		desde += dir * hasta_jugador
+	var hasta := desde + dir * float(arma["alcance"])
 	var consulta := PhysicsRayQueryParameters3D.create(desde, hasta)
 	consulta.collision_mask = 1 | 4      # mundo y zombies: una pared tapa el tiro
 	consulta.exclude = [get_rid()]

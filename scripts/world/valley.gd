@@ -284,12 +284,13 @@ func _build_cars() -> void:
 				mi.mesh = malla
 				raiz.add_child(mi)
 
-				var caja := malla.get_aabb()
+				# Envolvente convexa en vez de la caja del AABB. La caja iba a
+				# la altura del techo en toda su planta, así que al subirte al
+				# capó o al maletero quedabas flotando en el aire: ese era el
+				# carro "sobrepuesto". El casco sigue la silueta y, en un modelo
+				# low-poly de unos cientos de triángulos, cuesta casi lo mismo.
 				var cs := CollisionShape3D.new()
-				var forma := BoxShape3D.new()
-				forma.size = caja.size
-				cs.shape = forma
-				cs.position = caja.get_center()
+				cs.shape = malla.create_convex_shape(true, true)
 				raiz.add_child(cs)
 		z += randf_range(16.0, 42.0)
 

@@ -12,6 +12,19 @@ func _initialize() -> void:
 	if j == null:
 		print("[orient] FALLA: sin jugador"); quit(1); return
 
+	# Aislar al jugador. Desde que choca con zombies (máscara 7), uno que se
+	# cruce durante la medición rebota la velocidad y la prueba lee "de
+	# espaldas" aunque el modelo esté bien: falso positivo por el entorno.
+	var sp := current_scene.get_node_or_null("Spawner")
+	if sp:
+		sp.set_process(false)
+	var guardados: Array[Node] = []
+	for z in get_nodes_in_group("zombies"):
+		z.set_physics_process(false)
+		(z as Node3D).global_position += Vector3(0, 0, 400)   # lejos, sin estorbar
+		guardados.append(z)
+	await physics_frame
+
 	Input.action_press("move_forward")
 	for _k in 40:
 		await physics_frame
@@ -20,9 +33,9 @@ func _initialize() -> void:
 	Input.action_release("move_forward")
 	_reportar("JUGADOR", avance, frente)
 
-	var zs := get_nodes_in_group("zombies")
-	if not zs.is_empty():
-		var z := zs[0] as CharacterBody3D
+	if not guardados.is_empty():
+		var z := guardados[0] as CharacterBody3D
+		z.set_physics_process(true)
 		z.global_position = j.global_position + Vector3(10, 0.5, 0)
 		for _k in 60:
 			await physics_frame

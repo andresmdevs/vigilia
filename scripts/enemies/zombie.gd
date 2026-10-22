@@ -55,6 +55,7 @@ var _attack_landed := false
 var _nav_ready := false
 var health: float
 var _mats: Array[StandardMaterial3D] = []
+var _empuje := Vector3.ZERO
 var _flash := 0.0
 
 
@@ -87,7 +88,10 @@ func take_damage(amount: float, desde: Vector3) -> void:
 	var empuje := global_position - desde
 	empuje.y = 0.0
 	if empuje.length_squared() > 0.001:
-		velocity += empuje.normalized() * knockback
+		# A un acumulador propio, no a velocity: la IA reescribe velocity.x/z
+		# en cada tick (_chase, _halt), así que sumarlo ahí se perdía antes de
+		# llegar a move_and_slide y el empujón no existía.
+		_empuje += empuje.normalized() * knockback
 	if health <= 0.0:
 		_morir()
 
@@ -162,6 +166,11 @@ func _physics_process(delta: float) -> void:
 				_cooldown = 0.2
 				_set_state(State.CHASE)
 
+	# El empujón se suma DESPUÉS de que la IA decida su velocidad, y se va
+	# apagando solo para que el retroceso dure un instante y no se acumule.
+	velocity.x += _empuje.x
+	velocity.z += _empuje.z
+	_empuje = _empuje.lerp(Vector3.ZERO, clampf(7.0 * delta, 0.0, 1.0))
 	move_and_slide()
 
 

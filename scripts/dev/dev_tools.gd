@@ -160,6 +160,9 @@ func _probar_combate() -> void:
 	var vida2_ini: float = z2.get("health")
 	var tiros := 0
 	while is_instance_valid(z2) and float(z2.get("health")) > 0.0 and tiros < 12:
+		# Seguir al blanco: el empujón lo mueve tras cada impacto.
+		_mirar_a(jugador, z2.global_position + Vector3(0, 1.1, 0))
+		await get_tree().process_frame
 		# Por _atacar() y no por _disparo(): es el camino real del jugador, el
 		# único que descuenta munición. Probar el atajo no prueba nada.
 		jugador.call("_atacar")
@@ -208,15 +211,25 @@ func _probar_combate() -> void:
 
 
 ## Apunta la cámara del jugador a un punto del mundo, como haría el ratón.
+## Apunta la cámara a un punto del mundo, como haría el ratón: guiñada Y
+## cabeceo. La versión anterior solo fijaba la guiñada y dejaba el cabeceo por
+## defecto (10° hacia abajo), o sea apuntaba a los pies. Funcionaba por suerte:
+## en cuanto el empujón empezó a alejar al zombi, el rayo descendente daba en
+## el suelo antes de llegar a él.
+##
+## Basta con apuntar desde el rig: el brazo de la cámara es colineal con la
+## dirección de mirada, así que el rayo de la cámara pasa por el origen del rig.
 func _mirar_a(jugador: Node, objetivo: Vector3) -> void:
 	var cuerpo := jugador as Node3D
 	if cuerpo == null:
 		return
 	var rig := cuerpo.get_node("CameraRig") as Node3D
-	var d: Vector3 = objetivo - cuerpo.global_position
-	d.y = 0.0
-	if d.length_squared() > 0.0001:
-		rig.set("_yaw", atan2(-d.x, -d.z))
+	var d: Vector3 = objetivo - rig.global_position
+	var horizontal := Vector2(d.x, d.z).length()
+	if horizontal < 0.001:
+		return
+	rig.set("_yaw", atan2(-d.x, -d.z))
+	rig.set("_pitch", atan2(d.y, horizontal))
 
 
 func _shoot(path: String, walking: bool) -> void:
