@@ -5,7 +5,7 @@ extends Node
 ## Ese es el punto: equilibrar el juego debe ser editar números acá, nunca
 ## tocar la lógica del zombie o del spawner.
 
-enum Difficulty { CALMA, NOCHE, PESADILLA }
+enum Difficulty { CALMA, ACECHO, PESADILLA }
 
 const PRESETS := {
 	Difficulty.CALMA: {
@@ -18,8 +18,11 @@ const PRESETS := {
 		"loot_intervalo": Vector2(7.0, 12.0),
 		"loot_max": 16,
 	},
-	Difficulty.NOCHE: {
-		"nombre": "NOCHE",
+	# Antes se llamaba "NOCHE", igual que la fase nocturna del reloj: el HUD
+	# ponía "NOCHE" a pleno día y parecía un bug. Los nombres de dificultad no
+	# pueden pisar los de las fases.
+	Difficulty.ACECHO: {
+		"nombre": "ACECHO",
 		"lema": "Como debe jugarse",
 		"zombie_intervalo": Vector2(5.0, 10.0),
 		"zombie_max": 12,
@@ -47,7 +50,7 @@ const MAPAS := [
 	 "lema": "Carretera, bosque y casas dispersas"},
 ]
 
-var difficulty: Difficulty = Difficulty.NOCHE
+var difficulty: Difficulty = Difficulty.ACECHO
 var mapa_index := 0
 
 

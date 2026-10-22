@@ -13,6 +13,20 @@ func _initialize() -> void:
 		print("[mov] FALLA: sin jugador"); quit(1); return
 	var rig := j.get_node("CameraRig") as Node3D
 
+	# Aislar la prueba de los zombies. Persiguen al jugador durante los ~13 s
+	# que dura esto y, al alcanzarlo, lo empujan y desvían la velocidad
+	# medida. Con el mismo código salió 16/16 una vez y 11/16 la siguiente:
+	# era el azar de dónde aparecían, no los controles. Una prueba inestable
+	# enseña a ignorar los fallos, que es peor que no tener prueba.
+	var escena := current_scene
+	for nombre in ["Spawner", "LootSpawner"]:
+		var n := escena.get_node_or_null(nombre) if escena else null
+		if n != null:
+			n.set_process(false)
+	for z in get_nodes_in_group("zombies"):
+		z.queue_free()
+	await process_frame
+
 	print("[mov] --- direccion por tecla, a varios angulos de camara ---")
 	for grados in [0.0, 90.0, 180.0, -90.0]:
 		rig.set("_yaw", deg_to_rad(grados))

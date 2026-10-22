@@ -175,7 +175,10 @@ func _montar_linterna() -> void:
 	_linterna.spot_angle = 26.0
 	_linterna.spot_angle_attenuation = 0.6
 	_linterna.spot_attenuation = 1.2
-	_linterna.shadow_enabled = true
+	# Sin sombra: medido, costaba 70.000 triángulos y ~16% de FPS de noche,
+	# porque cada árbol dentro del cono se redibuja para calcularla. Una
+	# linterna sin sombra sigue viéndose bien; en móvil la diferencia pesa.
+	_linterna.shadow_enabled = false
 	_linterna.position = Vector3(0.25, -0.1, 0.0)
 	_linterna.visible = false
 	camera_rig.add_child(_linterna)
@@ -235,7 +238,15 @@ func _atacar() -> void:
 ## Resolverlo con geometría en vez de con un área física es más barato y, sobre
 ## todo, predecible: el jugador entiende enseguida dónde pega el hacha.
 func _golpe(arma: Dictionary) -> void:
-	var frente := -visual.global_transform.basis.z
+	# El arco se mide desde la MIRA, no desde la orientación del modelo.
+	#
+	# Usar el modelo era un bug sutil y feo: el daño se aplica aquí, pero el
+	# giro del modelo hacia la cámara ocurre después en el frame y además es
+	# gradual (lerp). Mientras te mueves, el modelo apunta a donde van las
+	# piernas, no a donde miras, así que con un arco de 90° un zombi justo en
+	# la mira quedaba fuera del cono al hacer strafe o retroceder. El jugador
+	# ve la animación de golpe, oye el swing, y el zombi no recibe nada.
+	var frente := Vector3(0, 0, -1).rotated(Vector3.UP, camera_rig.rotation.y)
 	var alcance := float(arma["alcance"])
 	var limite := cos(deg_to_rad(float(arma["arco_grados"]) * 0.5))
 	for nodo in get_tree().get_nodes_in_group("zombies"):
@@ -352,6 +363,12 @@ func _physics_process(delta: float) -> void:
 	_drive_animation()
 
 
+## OJO: esta fórmula orienta el -Z de Visual hacia el movimiento, que es lo
+## correcto en Godot. Pero los modelos glTF miran hacia +Z, así que el nodo
+## Character va girado 180° dentro de Visual en player.tscn y zombie.tscn.
+## Sin ese giro el personaje camina de espaldas (moonwalk), y los zombies
+## parecen alejarse aunque se estén acercando. Lo verifica test_orientacion.gd;
+## test_movimiento.gd NO, porque solo mide la velocidad.
 func _face_movement(delta: float) -> void:
 	if _apuntando > 0.0:
 		visual.rotation.y = lerp_angle(

@@ -427,6 +427,10 @@ func _scatter(paths: Array, count: int, threshold: float, escala: Vector2,
 	var troncos: StaticBody3D = null
 	if con_colision:
 		troncos = StaticBody3D.new()
+		# Capa 2, aparte del mundo. El brazo de la cámara solo mira la capa 1,
+		# así que atraviesa los troncos en vez de pegarse a ellos: antes un pino
+		# entre tú y la cámara te tapaba la pantalla entera con corteza.
+		troncos.collision_layer = 2
 		add_child(troncos)
 
 	var cubos := {}

@@ -21,8 +21,15 @@ enum Fase { DIA, ATARDECER, NOCHE, AMANECER }
 @export var dura_amanecer := 30.0
 
 @export_group("Escena")
-@export var sol: DirectionalLight3D
-@export var entorno: WorldEnvironment
+## OJO: NodePath y resolución explícita, NO `@export var sol: DirectionalLight3D`.
+## Godot no resuelve una referencia a nodo tipada cuando el .tscn se escribe a
+## mano: llega null, _aplicar() corre en vacío y el ciclo avanza sin que la luz
+## cambie nunca, sin un solo error en consola. Costó un video entero descubrirlo.
+@export var ruta_sol := NodePath("../Sun")
+@export var ruta_entorno := NodePath("../WorldEnvironment")
+
+var sol: DirectionalLight3D
+var entorno: WorldEnvironment
 
 ## Aspecto de cada fase. Se interpola entre la fase actual y la siguiente a lo
 ## largo de la fase, así que el cambio nunca es un salto: el atardecer se va
@@ -65,10 +72,21 @@ var _env: Environment
 
 func _ready() -> void:
 	add_to_group("reloj")
+	sol = get_node_or_null(ruta_sol) as DirectionalLight3D
+	entorno = get_node_or_null(ruta_entorno) as WorldEnvironment
+
+	# Fallar a gritos: sin estas referencias el ciclo es puro teatro.
+	if sol == null:
+		push_error("DayCycle: no encuentro el sol en '%s'" % ruta_sol)
+	if entorno == null:
+		push_error("DayCycle: no encuentro el WorldEnvironment en '%s'" % ruta_entorno)
+
 	if entorno != null:
 		_env = entorno.environment
 		if _env != null and _env.sky != null:
 			_cielo = _env.sky.sky_material as ProceduralSkyMaterial
+		if _cielo == null:
+			push_error("DayCycle: el entorno no tiene un ProceduralSkyMaterial que animar")
 	_restante = _duracion(fase)
 	_aplicar(0.0)
 
@@ -138,6 +156,12 @@ func _aplicar(t: float) -> void:
 		var elev := lerpf(actual["elevacion"], siguiente["elevacion"], k)
 		sol.rotation = Vector3(deg_to_rad(elev), -0.7, 0.0)
 		# Bajo el horizonte las sombras direccionales solo producen artefactos.
+		#
+		# Ojo con el coste: las sombras del sol vuelven a dibujar cada árbol en
+		# cada cascada del mapa de sombras. Medido: el día dibujaba 700 draw
+		# calls y la noche (sin sombras de sol) 348, o sea casi el doble. Por
+		# eso en main.tscn el sol va con 2 cascadas y 60 m de alcance: más allá
+		# la niebla ya disimula que no hay sombra.
 		sol.shadow_enabled = elev < -3.0
 
 	if _env != null:

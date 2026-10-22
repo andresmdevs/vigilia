@@ -18,6 +18,10 @@ func _ready() -> void:
 	if args.has("--combate"):
 		_probar_combate()
 		return
+	var fa := args.find("--fase")
+	if fa != -1 and fa + 2 < args.size():
+		_capturar_fase(args[fa + 1], args[fa + 2])
+		return
 	var ic := args.find("--ciclo")
 	if ic != -1:
 		_recorrer_ciclo(args[ic + 1] if ic + 1 < args.size() else "user://")
@@ -30,6 +34,33 @@ func _ready() -> void:
 	if idx + 1 < args.size():
 		path = args[idx + 1]
 	_shoot(path, args.has("--walk"))
+
+
+## Fuerza una fase concreta y la captura. Sin esperas ni bucles: la versión
+## que recorría el ciclo entero se colgaba, y una prueba que se cuelga es peor
+## que ninguna.
+func _capturar_fase(nombre: String, ruta: String) -> void:
+	for _i in 100:
+		await get_tree().process_frame
+	var r := get_tree().get_first_node_in_group("reloj")
+	if r == null:
+		push_error("sin reloj"); get_tree().quit(1); return
+	var fases := {"dia": 0, "atardecer": 1, "noche": 2, "amanecer": 3}
+	r.set("fase", fases.get(nombre, 0))
+	r.set("_restante", 999.0)
+	r.call("_aplicar", 0.0)
+	# 180 frames para que el FPS medido sea estable y no el del arranque.
+	for _k in 180:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(ruta)
+	var sol := r.get("sol") as DirectionalLight3D
+	print("[fase] %-10s fps=%d  draw_calls=%d  triangulos=%d  sol=%.2f" % [
+		nombre, Engine.get_frames_per_second(),
+		Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
+		Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
+		sol.light_energy if sol else -1.0])
+	get_tree().quit()
 
 
 ## Recorre el ciclo completo con el reloj acelerado y captura cada fase. Sin
@@ -93,10 +124,14 @@ func _probar_combate() -> void:
 	jugador.global_position = z.global_position + Vector3(0, 0, 1.4)
 	jugador.call("_equipar", "hacha")
 	await get_tree().physics_frame
-	# Mirar al zombi: el golpe es un arco frontal.
-	jugador.get_node("Visual").look_at(z.global_position, Vector3.UP)
-	jugador.get_node("Visual").rotation.x = 0.0
-	jugador.get_node("Visual").rotation.z = 0.0
+	# Apuntar la CÁMARA al zombi, no girar el modelo a mano.
+	#
+	# La versión anterior hacía Visual.look_at() antes de atacar, que es justo
+	# el paso que el juego hace por su cuenta (y hacía mal). Al forzarlo, la
+	# prueba esquivaba el camino real y daba verde con el arco del hacha roto.
+	# Una prueba que evita el código que debe ejercitar es peor que ninguna.
+	_mirar_a(jugador, z.global_position)
+	await get_tree().physics_frame
 
 	var golpes := 0
 	while is_instance_valid(z) and float(z.get("health")) > 0.0 and golpes < 10:
@@ -117,9 +152,8 @@ func _probar_combate() -> void:
 	var mun_ini: int = jugador.call("municion")
 	# Colocar la cámara mirando al zombi: el tiro sale de la cámara.
 	jugador.global_position = z2.global_position + Vector3(0, 0, 6.0)
-	var rig := jugador.get_node("CameraRig")
 	await get_tree().physics_frame
-	rig.look_at(z2.global_position + Vector3(0, 1.0, 0), Vector3.UP)
+	_mirar_a(jugador, z2.global_position)
 	for _k in 4:
 		await get_tree().physics_frame
 
@@ -137,7 +171,31 @@ func _probar_combate() -> void:
 		mun_ini, jugador.call("municion")])
 	print("[test] bajas totales = %d" % jugador.get("bajas"))
 
+	# --- EL CASO QUE SE NOS ESCAPABA: golpear mientras te mueves de lado ---
+	# Es el patrón natural de pelea cuerpo a cuerpo (el zombi corre más rápido
+	# que tú, así que lo rodeas), y era justo donde el hacha fallaba siempre.
+	jugador.call("_equipar", "hacha")
+	var vivos2 := get_tree().get_nodes_in_group("zombies")
+	if not vivos2.is_empty():
+		var z3 := vivos2[0] as Node3D
+		jugador.global_position = z3.global_position + Vector3(0, 0, 1.5)
+		_mirar_a(jugador, z3.global_position)
+		Input.action_press("move_left")       # strafe: las piernas van a 90°
+		for _k in 20:
+			await get_tree().physics_frame
+		var v_antes: float = z3.get("health")
+		jugador.call("_atacar")
+		for _k in 10:
+			await get_tree().physics_frame
+		var v_despues: float = z3.get("health") if is_instance_valid(z3) else 0.0
+		Input.action_release("move_left")
+		print("[test] golpe en strafe: vida %.0f -> %.0f  %s" % [
+			v_antes, v_despues, "PEGA" if v_despues < v_antes else "FALLA"])
+
 	# Con el cargador a cero no debe poder disparar.
+	# Equipar la pistola explícitamente: el caso de strafe de arriba dejó el
+	# hacha en la mano, y sin esto estaríamos midiendo hachazos.
+	jugador.call("_equipar", "pistola")
 	jugador.set("_municion", {"hacha": -1, "pistola": 0})
 	var antes: int = jugador.get("bajas")
 	for _k in 5:
@@ -147,6 +205,18 @@ func _probar_combate() -> void:
 	print("[test] sin balas: municion=%d  bajas sin cambio=%s" % [
 		jugador.call("municion"), antes == int(jugador.get("bajas"))])
 	get_tree().quit()
+
+
+## Apunta la cámara del jugador a un punto del mundo, como haría el ratón.
+func _mirar_a(jugador: Node, objetivo: Vector3) -> void:
+	var cuerpo := jugador as Node3D
+	if cuerpo == null:
+		return
+	var rig := cuerpo.get_node("CameraRig") as Node3D
+	var d: Vector3 = objetivo - cuerpo.global_position
+	d.y = 0.0
+	if d.length_squared() > 0.0001:
+		rig.set("_yaw", atan2(-d.x, -d.z))
 
 
 func _shoot(path: String, walking: bool) -> void:

@@ -36,11 +36,14 @@ environment = SubResource("Environment_main")
 rotation = Vector3(-0.95, -0.7, 0)
 light_energy = 1.1
 shadow_enabled = true
+directional_shadow_mode = 1
+directional_shadow_fade_start = 0.75
+directional_shadow_max_distance = 60.0
 
 [node name="DayCycle" type="Node" parent="."]
 script = ExtResource("8_ciclo")
-sol = NodePath("../Sun")
-entorno = NodePath("../WorldEnvironment")
+ruta_sol = NodePath("../Sun")
+ruta_entorno = NodePath("../WorldEnvironment")
 
 [node name="Level" parent="." instance=ExtResource("1_level")]
 
